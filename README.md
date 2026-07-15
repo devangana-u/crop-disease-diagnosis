@@ -24,9 +24,4 @@ backend/
 frontend/
 dataset/
 
-## How to Run
-1. Clone the repository
-2. Install dependencies:
-   pip install -r requirements.txt
-3. Run:
-   python app.py
+
