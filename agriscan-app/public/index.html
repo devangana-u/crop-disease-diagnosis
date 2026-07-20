@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>AgriScan — Crop Disease Detection</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700;9..144,900&family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F0F4E8; --bg-alt:#E4EBD8; --paper:#FBFDF7;
+  --ink:#12200F; --ink-soft:#3E4C36; --line:#C9D3B8;
+  --moss:#3E6B4F; --moss-dk:#1F3D2B; --gold:#D9A441; --gold-dk:#B3852F;
+  --soil:#6B4226; --low:#4C8058; --med:#D98E3B; --high:#C1443C;
+  --shadow: 0 8px 24px rgba(18,32,15,0.10);
+  --radius: 14px;
+}
+:root.dark{
+  --bg:#0E1710; --bg-alt:#152016; --paper:#16221A;
+  --ink:#EFF5E8; --ink-soft:#B9C7AC; --line:#2A3A28;
+  --moss:#6FAE83; --moss-dk:#9ED4AE; --gold:#E8B94F; --gold-dk:#F0C868;
+  --soil:#B4835B; --low:#6FAE83; --med:#E3A759; --high:#E27065;
+  --shadow: 0 10px 28px rgba(0,0,0,0.45);
+}
+*{box-sizing:border-box;}
+html{height:100%;}
+html,body{margin:0;padding:0;width:100%;}
+body{
+  background:var(--bg); color:var(--ink);
+  font-family:'Inter',system-ui,sans-serif;
+  transition:background .25s ease,color .25s ease;
+  -webkit-font-smoothing:antialiased;
+  min-height:100vh;
+  min-height:100dvh;
+}
+h1,h2,h3,.display{font-family:'Fraunces',serif;}
+.mono{font-family:'IBM Plex Mono',monospace;}
+button{font-family:inherit;cursor:pointer;}
+a{color:inherit;}
+::selection{background:var(--gold);color:var(--moss-dk);}
+
+/* ---------- layout shell ---------- */
+.app{max-width:1280px;margin:0 auto;padding:0 24px 64px;}
+.topbar{
+  position:sticky;top:0;z-index:40;
+  background:color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter:blur(10px);
+  border-bottom:1px solid var(--line);
+}
+.topbar-inner{max-width:1280px;margin:0 auto;padding:14px 24px;display:flex;align-items:center;gap:12px;}
+.brand{display:flex;align-items:center;gap:10px;margin-right:auto;}
+.brand-mark{width:34px;height:34px;flex:none;}
+.brand-name{font-family:'Fraunces',serif;font-weight:700;font-size:20px;letter-spacing:-0.01em;}
+.brand-tag{display:block;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-soft);font-family:'IBM Plex Mono',monospace;margin-top:-2px;}
+
+.iconbtn{
+  width:38px;height:38px;border-radius:50%;border:1px solid var(--line);
+  background:var(--paper);display:flex;align-items:center;justify-content:center;
+  color:var(--ink); transition:transform .15s ease, border-color .15s ease;
+}
+.iconbtn:hover{border-color:var(--moss);transform:translateY(-1px);}
+
+.tabs{display:flex;gap:4px;padding:6px;margin-top:14px;background:var(--bg-alt);border:1px solid var(--line);border-radius:999px;}
+.tab{
+  flex:1;text-align:center;padding:10px 6px;border-radius:999px;border:none;background:transparent;
+  color:var(--ink-soft);font-weight:600;font-size:13.5px;transition:all .18s ease;letter-spacing:.01em;
+}
+.tab.active{background:var(--moss-dk);color:#fff;box-shadow:var(--shadow);}
+:root.dark .tab.active{background:var(--moss);color:#0E1710;}
+
+main{padding-top:22px;}
+.hidden{display:none !important;}
+
+/* ---------- viewfinder signature ---------- */
+.corner{position:absolute;width:22px;height:22px;border-color:var(--gold);border-style:solid;border-width:0;}
+.corner.tl{top:-1px;left:-1px;border-top-width:3px;border-left-width:3px;border-radius:8px 0 0 0;}
+.corner.tr{top:-1px;right:-1px;border-top-width:3px;border-right-width:3px;border-radius:0 8px 0 0;}
+.corner.bl{bottom:-1px;left:-1px;border-bottom-width:3px;border-left-width:3px;border-radius:0 0 0 8px;}
+.corner.br{bottom:-1px;right:-1px;border-bottom-width:3px;border-right-width:3px;border-radius:0 0 8px 0;}
+
+.eyebrow{
+  font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--moss); display:flex;align-items:center;gap:8px;margin-bottom:6px;
+}
+.eyebrow::before,.eyebrow::after{content:"";flex:0 0 16px;height:1px;background:var(--gold);}
+.eyebrow::after{display:none;}
+
+.hero h1{font-size:clamp(26px,5vw,38px);line-height:1.06;margin:0 0 8px;letter-spacing:-0.01em;}
+.hero p{color:var(--ink-soft);max-width:52ch;margin:0;font-size:15px;line-height:1.55;}
+
+/* ---------- upload zone ---------- */
+.dropzone{
+  position:relative;margin-top:22px;border-radius:20px;padding:32px 20px;
+  background:var(--paper);border:1.5px dashed var(--line);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:14px;
+  transition:border-color .2s ease, background .2s ease;min-height:260px;
+}
+.dropzone.drag{border-color:var(--gold);background:var(--bg-alt);}
+.dropzone .icon-wrap{
+  width:64px;height:64px;border-radius:50%;background:var(--bg-alt);display:flex;align-items:center;justify-content:center;color:var(--moss);
+}
+.dz-title{font-family:'Fraunces',serif;font-weight:600;font-size:19px;}
+.dz-sub{color:var(--ink-soft);font-size:13.5px;max-width:34ch;}
+.dz-actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:6px;}
+
+.btn{
+  border-radius:999px;padding:12px 22px;font-weight:700;font-size:14px;border:1px solid transparent;
+  display:inline-flex;align-items:center;gap:8px;transition:transform .15s ease, box-shadow .15s ease, opacity .15s;
+}
+.btn:active{transform:scale(.97);}
+.btn-primary{background:var(--moss-dk);color:#fff;box-shadow:var(--shadow);}
+:root.dark .btn-primary{background:var(--gold);color:#16221A;}
+.btn-primary:hover{opacity:.92;}
+.btn-primary:disabled{opacity:.5;cursor:not-allowed;}
+.btn-ghost{background:transparent;color:var(--ink);border-color:var(--line);}
+.btn-ghost:hover{border-color:var(--moss);}
+.btn-gold{background:var(--gold);color:#241705;box-shadow:var(--shadow);}
+.btn-block{width:100%;justify-content:center;}
+.btn-sm{padding:8px 14px;font-size:12.5px;}
+
+.preview-wrap{position:relative;margin-top:22px;border-radius:20px;overflow:hidden;background:var(--paper);border:1px solid var(--line);}
+.preview-wrap img{width:100%;max-height:420px;object-fit:cover;display:block;}
+.preview-remove{position:absolute;top:12px;right:12px;background:rgba(14,23,16,.65);color:#fff;border:none;border-radius:50%;width:34px;height:34px;display:flex;align-items:center;justify-content:center;}
+
+.cropsel-row{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap;align-items:center;}
+.cropsel-row input{
+  flex:1;min-width:180px;border:1px solid var(--line);background:var(--paper);color:var(--ink);
+  border-radius:12px;padding:11px 14px;font-size:14px;font-weight:600;
+}
+.cropsel-row input:focus{outline:none;border-color:var(--moss);}
+.cropsel-row input.field-error{border-color:var(--high);}
+
+/* camera modal */
+.camera-modal{position:fixed;inset:0;background:#000;z-index:100;display:flex;flex-direction:column;}
+.camera-modal video{flex:1;width:100%;object-fit:cover;background:#000;}
+.camera-bar{display:flex;align-items:center;justify-content:space-between;padding:18px 24px;background:#000;}
+.shutter{width:68px;height:68px;border-radius:50%;background:#fff;border:4px solid rgba(255,255,255,.4);}
+.cam-close,.cam-flip{color:#fff;background:rgba(255,255,255,.15);width:44px;height:44px;border-radius:50%;border:none;display:flex;align-items:center;justify-content:center;}
+
+/* ---------- result card ---------- */
+.result{margin-top:26px;}
+.result-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+.result-crop{font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--moss);font-weight:600;}
+.result-disease{font-size:clamp(22px,4vw,30px);margin:2px 0 10px;line-height:1.1;}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px;}
+.badge{border-radius:999px;padding:6px 13px;font-size:12px;font-weight:700;display:inline-flex;align-items:center;gap:6px;}
+.badge-low{background:color-mix(in srgb, var(--low) 18%, transparent);color:var(--low);}
+.badge-med{background:color-mix(in srgb, var(--med) 20%, transparent);color:var(--med);}
+.badge-high{background:color-mix(in srgb, var(--high) 20%, transparent);color:var(--high);}
+.badge-conf{background:var(--bg-alt);color:var(--ink);border:1px solid var(--line);}
+
+.unclear-note{
+  margin-top:14px;border-radius:14px;padding:14px 16px;background:color-mix(in srgb, var(--med) 14%, transparent);
+  border:1px solid color-mix(in srgb, var(--med) 40%, transparent);font-size:13.5px;color:var(--ink);display:flex;gap:10px;
+}
+
+.section-card{margin-top:16px;background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:18px 18px;}
+.section-card h3{font-size:15px;margin:0 0 10px;display:flex;align-items:center;gap:8px;font-family:'Fraunces',serif;font-weight:600;}
+.section-card p, .section-card li{font-size:14px;line-height:1.62;color:var(--ink-soft);}
+.section-card ul{margin:0;padding-left:20px;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+@media(max-width:640px){.two-col{grid-template-columns:1fr;}}
+.pill-label{display:inline-block;font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;padding:3px 9px;border-radius:6px;margin-bottom:8px;}
+.pill-organic{background:color-mix(in srgb, var(--low) 18%, transparent);color:var(--low);}
+.pill-chem{background:color-mix(in srgb, var(--soil) 22%, transparent);color:var(--soil);}
+
+.result-actions{display:flex;gap:10px;margin-top:18px;flex-wrap:wrap;}
+
+/* history */
+.hist-item{
+  display:flex;gap:12px;align-items:center;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:10px;margin-bottom:10px;
+}
+.hist-thumb{width:56px;height:56px;border-radius:10px;object-fit:cover;flex:none;background:var(--bg-alt);}
+.hist-info{flex:1;min-width:0;}
+.hist-disease{font-weight:700;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.hist-meta{font-size:12px;color:var(--ink-soft);font-family:'IBM Plex Mono',monospace;margin-top:2px;}
+.hist-empty{text-align:center;padding:60px 20px;color:var(--ink-soft);}
+.hist-click{display:flex;gap:12px;align-items:center;flex:1;min-width:0;cursor:pointer;}
+.hist-delete{
+  flex:none;width:36px;height:36px;border-radius:50%;border:1px solid var(--line);background:transparent;
+  color:var(--ink-soft);display:flex;align-items:center;justify-content:center;transition:all .15s ease;
+}
+.hist-delete:hover{color:var(--high);border-color:var(--high);background:color-mix(in srgb, var(--high) 10%, transparent);}
+
+/* dashboard */
+.stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:18px;}
+@media(max-width:640px){.stat-grid{grid-template-columns:1fr 1fr;}}
+.stat-card{background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:18px;position:relative;overflow:hidden;}
+.stat-num{font-family:'Fraunces',serif;font-weight:700;font-size:30px;color:var(--moss-dk);}
+:root.dark .stat-num{color:var(--moss);}
+.stat-label{font-size:12px;color:var(--ink-soft);margin-top:2px;}
+.freq-row{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+.freq-name{width:120px;flex:none;font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.freq-bar-bg{flex:1;height:8px;background:var(--bg-alt);border-radius:999px;overflow:hidden;}
+.freq-bar{height:100%;background:var(--gold);border-radius:999px;}
+.freq-count{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--ink-soft);width:24px;text-align:right;}
+
+.section-title{display:flex;align-items:center;gap:10px;margin:30px 0 4px;}
+.section-title h2{font-size:19px;margin:0;}
+
+.spinner{width:20px;height:20px;border-radius:50%;border:2.5px solid rgba(255,255,255,.4);border-top-color:#fff;animation:spin .8s linear infinite;}
+:root.dark .spinner{border-color:rgba(0,0,0,.25);border-top-color:#0E1710;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--moss-dk);color:#fff;padding:12px 20px;border-radius:999px;font-size:13.5px;font-weight:600;box-shadow:var(--shadow);z-index:200;opacity:0;pointer-events:none;transition:opacity .25s ease, transform .25s ease;}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(-6px);}
+
+.footnote{text-align:center;color:var(--ink-soft);font-size:12px;margin-top:44px;line-height:1.6;}
+
+@media print{
+  .topbar,.tabs,.result-actions,.dropzone,.cropsel-row,.settings{display:none !important;}
+  body{background:#fff;color:#111;}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 40 40" fill="none">
+        <rect x="1" y="1" width="38" height="38" rx="11" fill="var(--moss-dk)"/>
+        <path d="M20 30C20 30 11 26 11 17.5C11 13.9 14 11 17.5 11C18.9 11 20 11.6 20 11.6C20 11.6 21.1 11 22.5 11C26 11 29 13.9 29 17.5C29 26 20 30 20 30Z" fill="var(--gold)"/>
+        <path d="M20 30V17" stroke="var(--moss-dk)" stroke-width="1.4" stroke-linecap="round"/>
+      </svg>
+      <div>
+        <span class="brand-name">AgriScan</span>
+        <span class="brand-tag" data-i18n="tagline">Field diagnosis, instantly</span>
+      </div>
+    </div>
+    <button class="iconbtn" id="themeToggle" title="Toggle theme" aria-label="Toggle theme">
+      <svg id="themeIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M2 12h2M20 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"/></svg>
+    </button>
+  </div>
+  <div class="app">
+    <div class="tabs">
+      <button class="tab active" data-view="scan" data-i18n="tabScan">Scan</button>
+      <button class="tab" data-view="history" data-i18n="tabHistory">History</button>
+      <button class="tab" data-view="dashboard" data-i18n="tabDashboard">Dashboard</button>
+    </div>
+  </div>
+</div>
+
+<div class="app">
+<main>
+
+  <!-- ===== SCAN VIEW ===== -->
+  <section id="view-scan">
+    <div class="hero" style="margin-top:20px;">
+      <div class="eyebrow" data-i18n="heroEyebrow">Point. Capture. Diagnose.</div>
+      <h1 data-i18n="heroTitle">What's wrong with your crop?</h1>
+      <p data-i18n="heroSub">Upload or capture a photo of the affected leaf, fruit, or stem. AgriScan reads the image and tells you what's happening, in plain language.</p>
+    </div>
+
+    <div class="dropzone" id="dropzone">
+      <div class="corner tl"></div><div class="corner tr"></div><div class="corner bl"></div><div class="corner br"></div>
+      <div class="icon-wrap">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 16V4M12 4l-4 4M12 4l4 4"/><path d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>
+      </div>
+      <div class="dz-title" data-i18n="dzTitle">Drop a photo here</div>
+      <div class="dz-sub" data-i18n="dzSub">or use your camera in the field — clear, well-lit close-ups work best</div>
+      <div class="dz-actions">
+        <button class="btn btn-primary" id="btnCamera">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8a2 2 0 012-2h2l1.5-2h5L16 6h2a2 2 0 012 2v9a2 2 0 01-2 2H6a2 2 0 01-2-2V8z"/><circle cx="12" cy="13" r="3.3"/></svg>
+          <span data-i18n="btnUseCamera">Use camera</span>
+        </button>
+        <button class="btn btn-ghost" id="btnGallery">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="9" r="1.6"/><path d="M21 15l-5-5-8 8"/></svg>
+          <span data-i18n="btnGallery">Choose from gallery</span>
+        </button>
+      </div>
+      <input type="file" id="fileInput" accept="image/*" class="hidden">
+      <input type="file" id="cameraInput" accept="image/*" capture="environment" class="hidden">
+    </div>
+
+    <div class="cropsel-row hidden" id="cropRow">
+      <input type="text" id="cropInput" list="cropSuggestions" required
+             data-i18n-placeholder="cropPlaceholder" placeholder="Enter crop name — e.g. Tomato, Banana, Rice">
+      <datalist id="cropSuggestions">
+        <option value="Rice"><option value="Banana"><option value="Tomato"><option value="Potato">
+        <option value="Coconut"><option value="Pepper (Black Pepper)"><option value="Rubber"><option value="Mango">
+      </datalist>
+      <button class="btn btn-primary" id="btnAnalyze">
+        <span id="analyzeSpinner" class="spinner hidden"></span>
+        <span id="analyzeLabel" data-i18n="btnAnalyze">Analyze photo</span>
+      </button>
+    </div>
+
+    <div id="resultArea"></div>
+  </section>
+
+  <!-- ===== HISTORY VIEW ===== -->
+  <section id="view-history" class="hidden">
+    <div class="section-title"><h2 data-i18n="historyTitle">Scan history</h2></div>
+    <div id="historyList"></div>
+  </section>
+
+  <!-- ===== DASHBOARD VIEW ===== -->
+  <section id="view-dashboard" class="hidden">
+    <div class="section-title"><h2 data-i18n="dashTitle">Dashboard</h2></div>
+    <div class="stat-grid">
+      <div class="stat-card"><div class="stat-num" id="statTotal">0</div><div class="stat-label" data-i18n="statTotal">Total scans</div></div>
+      <div class="stat-card"><div class="stat-num" id="statHigh">0</div><div class="stat-label" data-i18n="statHigh">High severity</div></div>
+      <div class="stat-card"><div class="stat-num" id="statCrops">0</div><div class="stat-label" data-i18n="statCrops">Crops scanned</div></div>
+    </div>
+    <div class="section-card" style="margin-top:22px;">
+      <h3 data-i18n="freqTitle">Frequently detected</h3>
+      <div id="freqList"></div>
+    </div>
+    <div class="section-title"><h2 data-i18n="recentTitle" style="font-size:16px;">Recent analyses</h2></div>
+    <div id="recentList"></div>
+  </section>
+
+</main>
+</div>
+
+<div class="camera-modal hidden" id="cameraModal">
+  <video id="camVideo" autoplay playsinline muted></video>
+  <div class="camera-bar">
+    <button class="cam-close" id="camClose">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+    <button class="shutter" id="camShutter"></button>
+    <button class="cam-flip" id="camFlip">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4v5h5M20 20v-5h-5"/><path d="M4.6 15A8 8 0 0019.4 9M19.4 9L15 9M19.4 9l0-5"/></svg>
+    </button>
+  </div>
+</div>
+
+<canvas id="captureCanvas" class="hidden"></canvas>
+<div class="toast" id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+/* ============================= i18n ============================= */
+const I18N = {
+en:{tagline:"Field diagnosis, instantly",tabScan:"Scan",tabHistory:"History",tabDashboard:"Dashboard",
+  heroEyebrow:"Point. Capture. Diagnose.",heroTitle:"What's wrong with your crop?",
+  heroSub:"Upload or capture a photo of the affected leaf, fruit, or stem. AgriScan reads the image and tells you what's happening, in plain language.",
+  dzTitle:"Drop a photo here",dzSub:"or use your camera in the field — clear, well-lit close-ups work best",
+  btnUseCamera:"Use camera",btnGallery:"Choose from gallery",btnAnalyze:"Analyze photo",
+  cropAuto:"Crop — let AgriScan detect",cropPlaceholder:"Enter crop name — e.g. Tomato, Banana, Rice",needCrop:"Please enter the crop name.",
+  deleteScan:"Delete",confirmDelete:"Delete this scan from history? This can't be undone.",toastDeleted:"Scan deleted",
+  settingsTitle:"Gemini API settings",
+  apiKeyLabel:"Your Google AI Studio (Gemini) API key",
+  apiKeyNote:"Stored only in this browser session, never sent anywhere but Google's API. Get a free key at aistudio.google.com/app/apikey.",
+  historyTitle:"Scan history",dashTitle:"Dashboard",statTotal:"Total scans",statHigh:"High severity",statCrops:"Crops scanned",
+  freqTitle:"Frequently detected",recentTitle:"Recent analyses",
+  needKey:"Add your Gemini API key above before analyzing.",needImage:"Please add a photo first.",
+  analyzing:"Reading the image…",errGeneric:"Couldn't reach Gemini. Check your key and connection, then try again.",
+  unclearTitle:"Image isn't clear enough for a confident diagnosis.",
+  unclearBody:"Try again in good daylight, fill the frame with the affected leaf or fruit, and hold the camera steady.",
+  symptoms:"Symptoms observed",causes:"Possible causes",organic:"Organic treatment",chemical:"Chemical treatment",
+  prevention:"Preventive measures",organicTag:"Low-input",chemTag:"Chemical",
+  confidence:"confidence",download:"Download report",share:"Share",newScan:"Scan another",
+  historyEmpty:"No scans yet. Analyze a photo and it'll show up here.",
+  dashEmptyFreq:"Nothing detected yet — your most common findings will appear here.",
+  toastSaved:"Scan saved to history",toastCopied:"Report copied to clipboard",toastDownloaded:"Report downloaded",
+  healthy:"No disease detected — plant appears healthy", sevLow:"Low",sevMed:"Medium",sevHigh:"High",
+  crop:"Crop"}
+};
+let LANG = 'en';
+function t(key){ return (I18N[LANG] && I18N[LANG][key]) || I18N.en[key] || key; }
+function applyI18n(){
+  document.querySelectorAll('[data-i18n]').forEach(el=>{
+    el.textContent = t(el.getAttribute('data-i18n'));
+  });
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(el=>{
+    el.setAttribute('placeholder', t(el.getAttribute('data-i18n-placeholder')));
+  });
+}
+
+/* ============================= state ============================= */
+let currentImageBase64 = null; // raw base64 (no prefix)
+let currentImageMime = 'image/jpeg';
+let currentImageDataUrl = null;
+let lastResult = null;
+let lastResultImage = null;
+let stream = null;
+let facingMode = 'environment';
+
+/* ============================= storage (persistent, local to this browser) ============================= */
+const HISTORY_KEY = 'agriscan:history';
+async function loadHistory(){
+  try{
+    const raw = localStorage.getItem(HISTORY_KEY);
+    return raw ? JSON.parse(raw) : [];
+  }catch(e){ return []; }
+}
+async function saveHistory(list){
+  try{ localStorage.setItem(HISTORY_KEY, JSON.stringify(list)); }catch(e){}
+}
+async function addScanToHistory(entry){
+  const list = await loadHistory();
+  list.unshift(entry);
+  await saveHistory(list.slice(0,200));
+}
+
+/* ============================= toast ============================= */
+let toastTimer=null;
+function showToast(msg){
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>el.classList.remove('show'), 2400);
+}
+
+/* ============================= tabs ============================= */
+document.querySelectorAll('.tab').forEach(tabEl=>{
+  tabEl.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    tabEl.classList.add('active');
+    const view = tabEl.getAttribute('data-view');
+    ['scan','history','dashboard'].forEach(v=>{
+      document.getElementById('view-'+v).classList.toggle('hidden', v!==view);
+    });
+    if(view==='history') renderHistory();
+    if(view==='dashboard') renderDashboard();
+  });
+});
+
+/* ============================= theme ============================= */
+function setTheme(dark){
+  document.documentElement.classList.toggle('dark', dark);
+  document.getElementById('themeIcon').innerHTML = dark
+    ? '<path d="M21 12.4A9 9 0 1111.6 3 7 7 0 0021 12.4z"/>'
+    : '<circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M2 12h2M20 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"/>';
+}
+document.getElementById('themeToggle').addEventListener('click', ()=>{
+  setTheme(!document.documentElement.classList.contains('dark'));
+});
+setTheme(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+
+/* ============================= upload handling ============================= */
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('fileInput');
+const cameraInput = document.getElementById('cameraInput');
+const cropRow = document.getElementById('cropRow');
+
+document.getElementById('btnGallery').addEventListener('click', ()=>fileInput.click());
+fileInput.addEventListener('change', e=>{ if(e.target.files[0]) handleFile(e.target.files[0]); });
+
+['dragenter','dragover'].forEach(ev=>dropzone.addEventListener(ev, e=>{e.preventDefault(); dropzone.classList.add('drag');}));
+['dragleave','drop'].forEach(ev=>dropzone.addEventListener(ev, e=>{e.preventDefault(); dropzone.classList.remove('drag');}));
+dropzone.addEventListener('drop', e=>{
+  const f = e.dataTransfer.files && e.dataTransfer.files[0];
+  if(f && f.type.startsWith('image/')) handleFile(f);
+});
+
+function handleFile(file){
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    currentImageDataUrl = reader.result;
+    currentImageBase64 = reader.result.split(',')[1];
+    currentImageMime = file.type || 'image/jpeg';
+    showPreview(currentImageDataUrl);
+  };
+  reader.readAsDataURL(file);
+}
+
+function showPreview(dataUrl){
+  dropzone.classList.add('hidden');
+  cropRow.classList.remove('hidden');
+  let wrap = document.getElementById('previewWrap');
+  if(!wrap){
+    wrap = document.createElement('div');
+    wrap.className='preview-wrap'; wrap.id='previewWrap';
+    dropzone.parentNode.insertBefore(wrap, dropzone.nextSibling);
+  }
+  wrap.innerHTML = `<img src="${dataUrl}" alt="Uploaded crop photo"><button class="preview-remove" id="btnRemovePreview">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2"><path d="M6 6l12 12M18 6L6 18"/></svg></button>`;
+  document.getElementById('btnRemovePreview').addEventListener('click', resetUpload);
+  document.getElementById('resultArea').innerHTML='';
+  lastResult=null;
+}
+function resetUpload(){
+  currentImageBase64=null; currentImageDataUrl=null; lastResult=null;
+  dropzone.classList.remove('hidden');
+  cropRow.classList.add('hidden');
+  const wrap = document.getElementById('previewWrap');
+  if(wrap) wrap.remove();
+  document.getElementById('resultArea').innerHTML='';
+  fileInput.value=''; cameraInput.value='';
+  const cropField = document.getElementById('cropInput');
+  if(cropField){ cropField.value=''; cropField.classList.remove('field-error'); }
+}
+
+/* ============================= camera ============================= */
+const cameraModal = document.getElementById('cameraModal');
+const camVideo = document.getElementById('camVideo');
+document.getElementById('btnCamera').addEventListener('click', openCamera);
+document.getElementById('camClose').addEventListener('click', closeCamera);
+document.getElementById('camFlip').addEventListener('click', ()=>{ facingMode = facingMode==='environment'?'user':'environment'; openCamera(); });
+document.getElementById('camShutter').addEventListener('click', capturePhoto);
+
+async function openCamera(){
+  try{
+    if(stream) stream.getTracks().forEach(tr=>tr.stop());
+    stream = await navigator.mediaDevices.getUserMedia({video:{facingMode}, audio:false});
+    camVideo.srcObject = stream;
+    cameraModal.classList.remove('hidden');
+  }catch(err){
+    // fallback to native camera capture input on devices/browsers without getUserMedia
+    cameraInput.click();
+  }
+}
+function closeCamera(){
+  cameraModal.classList.add('hidden');
+  if(stream){ stream.getTracks().forEach(tr=>tr.stop()); stream=null; }
+}
+cameraInput.addEventListener('change', e=>{ if(e.target.files[0]) handleFile(e.target.files[0]); });
+
+function capturePhoto(){
+  const canvas = document.getElementById('captureCanvas');
+  canvas.width = camVideo.videoWidth; canvas.height = camVideo.videoHeight;
+  canvas.getContext('2d').drawImage(camVideo,0,0);
+  const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+  currentImageDataUrl = dataUrl;
+  currentImageBase64 = dataUrl.split(',')[1];
+  currentImageMime = 'image/jpeg';
+  closeCamera();
+  showPreview(dataUrl);
+}
+
+/* ============================= Gemini analysis ============================= */
+const SEV_LABELS = {Low:'sevLow', Medium:'sevMed', High:'sevHigh'};
+
+document.getElementById('btnAnalyze').addEventListener('click', analyzeImage);
+
+async function analyzeImage(){
+  if(!currentImageBase64){ showToast(t('needImage')); return; }
+
+  const cropField = document.getElementById('cropInput');
+  const cropHint = cropField.value.trim();
+  if(!cropHint){
+    showToast(t('needCrop'));
+    cropField.classList.add('field-error');
+    cropField.focus();
+    return;
+  }
+  cropField.classList.remove('field-error');
+
+  const btn = document.getElementById('btnAnalyze');
+  const spinner = document.getElementById('analyzeSpinner');
+  const label = document.getElementById('analyzeLabel');
+  btn.disabled = true; spinner.classList.remove('hidden'); label.textContent = t('analyzing');
+
+  try{
+    // The image and a few preferences are sent to OUR OWN backend (server.js),
+    // which holds the Gemini API key server-side (in .env) and calls Gemini for us.
+    const res = await fetch('/api/analyze', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        imageBase64: currentImageBase64,
+        mimeType: currentImageMime,
+        crop: cropHint,
+        lang: LANG
+      })
+    });
+    const data = await res.json();
+    if(!res.ok) throw new Error(data.error || ('HTTP '+res.status));
+
+    const parsed = data.result;
+    lastResult = parsed;
+    renderResult(parsed, currentImageDataUrl, true);
+
+    await addScanToHistory({
+      id: Date.now().toString(36)+Math.random().toString(36).slice(2,7),
+      date: new Date().toISOString(),
+      thumb: currentImageDataUrl,
+      result: parsed
+    });
+  }catch(err){
+    console.error(err);
+    document.getElementById('resultArea').innerHTML = `
+      <div class="unclear-note" style="margin-top:22px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex:none;"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>
+        <span>${t('errGeneric')}</span>
+      </div>`;
+  }finally{
+    btn.disabled=false; spinner.classList.add('hidden'); label.textContent = t('btnAnalyze');
+  }
+}
+
+function sevClass(sev){ return sev==='High'?'badge-high':sev==='Medium'?'badge-med':'badge-low'; }
+
+function renderResult(r, imgUrl, scrollTo){
+  lastResultImage = imgUrl || null;
+  const area = document.getElementById('resultArea');
+  const sevKey = SEV_LABELS[r.severity] || 'sevLow';
+  const listItems = arr => (arr||[]).map(x=>`<li>${escapeHtml(x)}</li>`).join('');
+
+  area.innerHTML = `
+  <div class="result">
+    ${r.isUnclear ? `<div class="unclear-note">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex:none;"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>
+        <div><strong>${t('unclearTitle')}</strong><br>${t('unclearBody')}</div>
+      </div>` : ''}
+    <div class="result-head">
+      <div>
+        <div class="result-crop">${t('crop')}: ${escapeHtml(r.crop || '—')}</div>
+        <h2 class="result-disease">${escapeHtml(r.isHealthy ? t('healthy') : (r.disease || '—'))}</h2>
+      </div>
+    </div>
+    <div class="badges">
+      <span class="badge ${sevClass(r.severity)}">${t(sevKey)} severity</span>
+      <span class="badge badge-conf mono">${Math.round(r.confidence||0)}% ${t('confidence')}</span>
+    </div>
+
+    <div class="section-card">
+      <h3>${t('symptoms')}</h3>
+      <ul>${listItems(r.symptoms)}</ul>
+    </div>
+    <div class="section-card">
+      <h3>${t('causes')}</h3>
+      <ul>${listItems(r.causes)}</ul>
+    </div>
+    <div class="two-col">
+      <div class="section-card">
+        <span class="pill-label pill-organic">${t('organicTag')}</span>
+        <h3>${t('organic')}</h3>
+        <ul>${listItems(r.organicTreatment)}</ul>
+      </div>
+      <div class="section-card">
+        <span class="pill-label pill-chem">${t('chemTag')}</span>
+        <h3>${t('chemical')}</h3>
+        <ul>${listItems(r.chemicalTreatment)}</ul>
+      </div>
+    </div>
+    <div class="section-card">
+      <h3>${t('prevention')}</h3>
+      <ul>${listItems(r.prevention)}</ul>
+    </div>
+
+    <div class="result-actions">
+      <button class="btn btn-gold" id="btnDownload">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>
+        ${t('download')}
+      </button>
+      <button class="btn btn-ghost" id="btnNewScan">${t('newScan')}</button>
+    </div>
+  </div>`;
+
+  document.getElementById('btnDownload').addEventListener('click', ()=>downloadReport(r));
+  document.getElementById('btnNewScan').addEventListener('click', resetUpload);
+
+  if(scrollTo){ area.scrollIntoView({behavior:'smooth', block:'start'}); showToast(t('toastSaved')); }
+}
+
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+/* ---- PDF report generation (jsPDF) ---- */
+const PDF_COLORS = {
+  band:[31,61,43],      // moss-dk
+  gold:[217,164,65],
+  ink:[24,34,20],
+  soft:[90,100,80],
+  low:[76,128,88], med:[217,142,59], high:[193,68,58],
+  line:[210,218,196]
+};
+function severityColor(sev){ return sev==='High'?PDF_COLORS.high:sev==='Medium'?PDF_COLORS.med:PDF_COLORS.low; }
+
+function buildReportPdf(r, imgDataUrl){
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit:'pt', format:'a4' });
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  const margin = 46;
+  const contentW = pageW - margin*2;
+  let y = 0;
+
+  function newPage(){
+    doc.addPage();
+    y = margin;
+  }
+  function ensureSpace(h){
+    if(y + h > pageH - margin){ newPage(); }
+  }
+  function heading(text){
+    ensureSpace(26);
+    doc.setFont('helvetica','bold'); doc.setFontSize(12.5);
+    doc.setTextColor(...PDF_COLORS.band);
+    doc.text(text, margin, y);
+    y += 6;
+    doc.setDrawColor(...PDF_COLORS.gold); doc.setLineWidth(1.4);
+    doc.line(margin, y, margin+26, y);
+    y += 14;
+  }
+  function bulletList(items){
+    doc.setFont('helvetica','normal'); doc.setFontSize(10.5);
+    doc.setTextColor(...PDF_COLORS.ink);
+    (items||[]).forEach(item=>{
+      const lines = doc.splitTextToSize(String(item), contentW-16);
+      ensureSpace(lines.length*14 + 4);
+      doc.setFillColor(...PDF_COLORS.gold);
+      doc.circle(margin+3, y-3.5, 1.6, 'F');
+      doc.text(lines, margin+14, y);
+      y += lines.length*14 + 4;
+    });
+    y += 6;
+  }
+
+  // header band
+  doc.setFillColor(...PDF_COLORS.band);
+  doc.rect(0,0,pageW,72,'F');
+  doc.setTextColor(255,255,255);
+  doc.setFont('helvetica','bold'); doc.setFontSize(20);
+  doc.text('AgriScan', margin, 34);
+  doc.setFont('helvetica','normal'); doc.setFontSize(10.5);
+  doc.text('Crop Diagnosis Report', margin, 52);
+  doc.setFontSize(9);
+  doc.text(new Date().toLocaleString(), pageW-margin, 34, { align:'right' });
+  doc.setFontSize(8.5);
+  doc.setTextColor(230,230,220);
+  doc.text('Generated by AgriScan — AI first opinion, not a substitute for an agronomist', pageW-margin, 52, { align:'right' });
+
+  y = 96;
+
+  // photo
+  let textStartY = y;
+  const imgW = 150, imgH = 112;
+  let hasImg = false;
+  if(imgDataUrl){
+    try{
+      const fmt = imgDataUrl.indexOf('image/png')>-1 ? 'PNG' : 'JPEG';
+      doc.setDrawColor(...PDF_COLORS.line); doc.setLineWidth(1);
+      doc.roundedRect(pageW-margin-imgW, y, imgW, imgH, 6, 6);
+      doc.addImage(imgDataUrl, fmt, pageW-margin-imgW+1, y+1, imgW-2, imgH-2, undefined, 'FAST');
+      hasImg = true;
+    }catch(e){ /* image embed failed silently, continue without it */ }
+  }
+  const textW = hasImg ? contentW - imgW - 18 : contentW;
+
+  doc.setFont('helvetica','bold'); doc.setFontSize(17);
+  doc.setTextColor(...PDF_COLORS.ink);
+  const diseaseLines = doc.splitTextToSize(r.isHealthy ? t('healthy') : (r.disease||'—'), textW);
+  doc.text(diseaseLines, margin, y+16);
+  y += 16 + diseaseLines.length*19 + 4;
+
+  doc.setFont('helvetica','normal'); doc.setFontSize(10);
+  doc.setTextColor(...PDF_COLORS.soft);
+  doc.text(`${t('crop')}: ${r.crop||'—'}`, margin, y); y += 16;
+
+  const sevCol = severityColor(r.severity);
+  doc.setFillColor(...sevCol);
+  doc.roundedRect(margin, y-9, 70, 16, 8, 8, 'F');
+  doc.setTextColor(255,255,255); doc.setFont('helvetica','bold'); doc.setFontSize(9);
+  doc.text(t(SEV_LABELS[r.severity]||'sevLow'), margin+35, y+1, { align:'center' });
+
+  doc.setTextColor(...PDF_COLORS.ink);
+  doc.setFont('helvetica','bold'); doc.setFontSize(9);
+  doc.text(`${Math.round(r.confidence||0)}% ${t('confidence')}`, margin+82, y+1);
+  y += 22;
+
+  y = Math.max(y, textStartY + imgH + 14);
+
+  if(r.isUnclear){
+    ensureSpace(40);
+    doc.setFillColor(250,240,222);
+    doc.roundedRect(margin, y, contentW, 34, 6, 6, 'F');
+    doc.setTextColor(...PDF_COLORS.med); doc.setFont('helvetica','bold'); doc.setFontSize(9.5);
+    doc.text(t('unclearTitle'), margin+10, y+14);
+    doc.setFont('helvetica','normal'); doc.setTextColor(...PDF_COLORS.soft); doc.setFontSize(8.5);
+    const un = doc.splitTextToSize(t('unclearBody'), contentW-20);
+    doc.text(un, margin+10, y+25);
+    y += 34 + un.length*3 + 14;
+  }
+
+  heading(t('symptoms')); bulletList(r.symptoms);
+  heading(t('causes')); bulletList(r.causes);
+  heading(t('organic')); bulletList(r.organicTreatment);
+  heading(t('chemical')); bulletList(r.chemicalTreatment);
+  heading(t('prevention')); bulletList(r.prevention);
+
+  // footer page numbers
+  const pageCount = doc.internal.getNumberOfPages();
+  for(let i=1;i<=pageCount;i++){
+    doc.setPage(i);
+    doc.setFont('helvetica','normal'); doc.setFontSize(8);
+    doc.setTextColor(...PDF_COLORS.soft);
+    doc.text(`AgriScan · ${i}/${pageCount}`, pageW/2, pageH-18, { align:'center' });
+  }
+
+  return doc;
+}
+
+function downloadReport(r){
+  const doc = buildReportPdf(r, lastResultImage);
+  doc.save(`AgriScan_Report_${Date.now()}.pdf`);
+  showToast(t('toastDownloaded'));
+}
+
+/* ============================= history view ============================= */
+async function deleteHistoryItem(id){
+  if(!window.confirm(t('confirmDelete'))) return;
+  const list = await loadHistory();
+  await saveHistory(list.filter(x=>x.id!==id));
+  showToast(t('toastDeleted'));
+  renderHistory();
+  if(!document.getElementById('view-dashboard').classList.contains('hidden')) renderDashboard();
+}
+
+function trashIcon(){
+  return `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>`;
+}
+
+async function renderHistory(){
+  const list = await loadHistory();
+  const el = document.getElementById('historyList');
+  if(!list.length){ el.innerHTML = `<div class="hist-empty">${t('historyEmpty')}</div>`; return; }
+  el.innerHTML = list.map(item=>{
+    const r = item.result;
+    const sev = sevClass(r.severity);
+    return `<div class="hist-item">
+      <div class="hist-click" data-id="${item.id}">
+        <img class="hist-thumb" src="${item.thumb}" alt="">
+        <div class="hist-info">
+          <div class="hist-disease">${escapeHtml(r.isHealthy ? t('healthy') : r.disease)}</div>
+          <div class="hist-meta">${escapeHtml(r.crop||'')} · ${new Date(item.date).toLocaleDateString()} · ${Math.round(r.confidence||0)}%</div>
+        </div>
+        <span class="badge ${sev}">${t(SEV_LABELS[r.severity]||'sevLow')}</span>
+      </div>
+      <button class="hist-delete" data-del-id="${item.id}" title="${t('deleteScan')}" aria-label="${t('deleteScan')}">${trashIcon()}</button>
+    </div>`;
+  }).join('');
+  el.querySelectorAll('.hist-click').forEach(node=>{
+    node.addEventListener('click', async ()=>{
+      const id = node.getAttribute('data-id');
+      const item = (await loadHistory()).find(x=>x.id===id);
+      if(!item) return;
+      document.querySelector('.tab[data-view="scan"]').click();
+      currentImageDataUrl = item.thumb;
+      showPreview(item.thumb);
+      lastResult = item.result;
+      renderResult(item.result, item.thumb, true);
+    });
+  });
+  el.querySelectorAll('.hist-delete').forEach(btn=>{
+    btn.addEventListener('click', e=>{
+      e.stopPropagation();
+      deleteHistoryItem(btn.getAttribute('data-del-id'));
+    });
+  });
+}
+
+/* ============================= dashboard view ============================= */
+async function renderDashboard(){
+  const list = await loadHistory();
+  document.getElementById('statTotal').textContent = list.length;
+  document.getElementById('statHigh').textContent = list.filter(x=>x.result.severity==='High').length;
+  document.getElementById('statCrops').textContent = new Set(list.map(x=>x.result.crop).filter(Boolean)).size;
+
+  const freq = {};
+  list.forEach(x=>{
+    if(x.result.isHealthy) return;
+    const name = x.result.disease || 'Unknown';
+    freq[name] = (freq[name]||0)+1;
+  });
+  const sorted = Object.entries(freq).sort((a,b)=>b[1]-a[1]).slice(0,6);
+  const freqEl = document.getElementById('freqList');
+  if(!sorted.length){ freqEl.innerHTML = `<div class="hist-empty" style="padding:20px;">${t('dashEmptyFreq')}</div>`; }
+  else{
+    const max = sorted[0][1];
+    freqEl.innerHTML = sorted.map(([name,count])=>`
+      <div class="freq-row">
+        <div class="freq-name">${escapeHtml(name)}</div>
+        <div class="freq-bar-bg"><div class="freq-bar" style="width:${(count/max*100).toFixed(0)}%"></div></div>
+        <div class="freq-count mono">${count}</div>
+      </div>`).join('');
+  }
+
+  const recentEl = document.getElementById('recentList');
+  const recent = list.slice(0,5);
+  if(!recent.length){ recentEl.innerHTML = `<div class="hist-empty">${t('historyEmpty')}</div>`; }
+  else{
+    recentEl.innerHTML = recent.map(item=>{
+      const r = item.result;
+      return `<div class="hist-item">
+        <img class="hist-thumb" src="${item.thumb}" alt="">
+        <div class="hist-info">
+          <div class="hist-disease">${escapeHtml(r.isHealthy ? t('healthy') : r.disease)}</div>
+          <div class="hist-meta">${escapeHtml(r.crop||'')} · ${new Date(item.date).toLocaleDateString()}</div>
+        </div>
+        <span class="badge ${sevClass(r.severity)}">${t(SEV_LABELS[r.severity]||'sevLow')}</span>
+      </div>`;
+    }).join('');
+  }
+}
+
+/* ============================= init ============================= */
+document.getElementById('cropInput').addEventListener('input', e=>e.target.classList.remove('field-error'));
+applyI18n();
+</script>
+</body>
+</html>
