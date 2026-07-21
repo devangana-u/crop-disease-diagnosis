@@ -132,10 +132,15 @@ main{padding-top:22px;}
 
 /* camera modal */
 .camera-modal{position:fixed;inset:0;background:#000;z-index:100;display:flex;flex-direction:column;}
-.camera-modal video{flex:1;width:100%;object-fit:cover;background:#000;}
-.camera-bar{display:flex;align-items:center;justify-content:space-between;padding:18px 24px;background:#000;}
-.shutter{width:68px;height:68px;border-radius:50%;background:#fff;border:4px solid rgba(255,255,255,.4);}
-.cam-close,.cam-flip{color:#fff;background:rgba(255,255,255,.15);width:44px;height:44px;border-radius:50%;border:none;display:flex;align-items:center;justify-content:center;}
+.camera-modal video{flex:1;min-height:0;width:100%;object-fit:cover;background:#000;}
+.camera-bar{
+  flex:none;position:relative;z-index:2;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:18px 24px calc(18px + env(safe-area-inset-bottom));
+  background:#000;
+}
+.shutter{width:68px;height:68px;border-radius:50%;background:#fff;border:4px solid rgba(255,255,255,.4);flex:none;}
+.cam-close,.cam-flip{color:#fff;background:rgba(255,255,255,.18);width:44px;height:44px;border-radius:50%;border:none;display:flex;align-items:center;justify-content:center;flex:none;}
 
 /* ---------- result card ---------- */
 .result{margin-top:26px;}
@@ -347,6 +352,11 @@ en:{tagline:"Field diagnosis, instantly",tabScan:"Scan",tabHistory:"History",tab
   historyTitle:"Scan history",dashTitle:"Dashboard",statTotal:"Total scans",statHigh:"High severity",statCrops:"Crops scanned",
   freqTitle:"Frequently detected",recentTitle:"Recent analyses",
   needKey:"Add your Gemini API key above before analyzing.",needImage:"Please add a photo first.",
+  camFallback:"Couldn't open the live camera — opening your device's camera/file picker instead.",
+  camInsecure:"Live camera needs HTTPS or localhost. Opening the file picker instead — access this site as https:// or via localhost to use it.",
+  camDenied:"Camera permission was denied. Allow camera access in your browser's site settings, then try again.",
+  camNotFound:"No camera was found on this device. Opening the file picker instead.",
+  camUnsupported:"This browser doesn't support live camera capture. Opening the file picker instead.",
   analyzing:"Reading the image…",errGeneric:"Couldn't reach Gemini. Check your key and connection, then try again.",
   unclearTitle:"Image isn't clear enough for a confident diagnosis.",
   unclearBody:"Try again in good daylight, fill the frame with the affected leaf or fruit, and hold the camera steady.",
@@ -495,11 +505,24 @@ document.getElementById('camShutter').addEventListener('click', capturePhoto);
 
 async function openCamera(){
   try{
+    if(!window.isSecureContext){
+      throw new DOMException('Camera requires HTTPS or localhost.', 'InsecureContextError');
+    }
+    if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+      throw new DOMException('Camera API not supported in this browser.', 'NotSupportedError');
+    }
     if(stream) stream.getTracks().forEach(tr=>tr.stop());
     stream = await navigator.mediaDevices.getUserMedia({video:{facingMode}, audio:false});
     camVideo.srcObject = stream;
     cameraModal.classList.remove('hidden');
   }catch(err){
+    console.warn('Camera unavailable:', err && err.name, err && err.message);
+    let msg = t('camFallback');
+    if(err && err.name === 'InsecureContextError') msg = t('camInsecure');
+    else if(err && err.name === 'NotAllowedError') msg = t('camDenied');
+    else if(err && err.name === 'NotFoundError') msg = t('camNotFound');
+    else if(err && err.name === 'NotSupportedError') msg = t('camUnsupported');
+    showToast(msg);
     // fallback to native camera capture input on devices/browsers without getUserMedia
     cameraInput.click();
   }
